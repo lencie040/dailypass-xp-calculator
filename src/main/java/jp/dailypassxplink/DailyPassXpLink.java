@@ -5,42 +5,36 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 public final class DailyPassXpLink implements ClientModInitializer {
     private static final Logger LOG = LoggerFactory.getLogger("dailypass-xp-link");
     private static final Identifier REQUEST = new Identifier("dailypass", "level_request");
-    private static final Identifier DATA = new Identifier("dailypass", "level_data");
-    private static final long REQUEST_INTERVAL_MS = 8_000;
-    private static final long SNAPSHOT_LIFETIME_MS = 24_000;
-    private static final long VIEWER_WINDOW_MS = 20_000;
-
-    private final AtomicReference<ClientPlayNetworkHandler> pending = new AtomicReference<>();
     private final LocalSite site = new LocalSite(this);
-    private volatile Snapshot snapshot;
+    private volatile Progress progress = new Progress("offline", null);
     private volatile DailyPassFares.Data fareData;
-    private volatile long lastVisit;
-    private volatile String state = "offline";
     private ProgressReader reader;
+    private List<?> observedEntries;
     private DailyPassFares fares;
-    private long nextRequest;
     private long nextFareRead;
 
     @Override
     public void onInitializeClient() {
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
-            attach();
+            try {
+                reader = new ProgressReader();
+            } catch (ReflectiveOperationException | LinkageError e) {
+                LOG.warn("DailyPass level viewer is unavailable", e);
+            }
             try {
                 fares = new DailyPassFares();
             } catch (ReflectiveOperationException | LinkageError e) {
@@ -50,43 +44,8 @@ public final class DailyPassXpLink implements ClientModInitializer {
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> site.close());
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> reset());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> reset());
-    }
-
-    private void attach() {
-        try {
-            reader = new ProgressReader();
-            var hook = Class.forName("jp.dailypass.progress.LevelViewerItem").getField("requestHook");
-            Runnable manual = (Runnable) hook.get(null);
-            var receiver = ClientPlayNetworking.unregisterGlobalReceiver(DATA);
-            if (manual == null || receiver == null) {
-                if (receiver != null) ClientPlayNetworking.registerGlobalReceiver(DATA, receiver);
-                LOG.warn("DailyPass level viewer is unavailable");
-                reader = null;
-                return;
-            }
-
-            ClientPlayNetworking.registerGlobalReceiver(DATA, (client, handler, buffer, sender) -> {
-                if (!pending.compareAndSet(handler, null)) {
-                    receiver.receive(client, handler, buffer, sender);
-                    return;
-                }
-                try {
-                    List<?> entries = reader.read(buffer);
-                    client.execute(() -> apply(client, handler, entries));
-                } catch (ReflectiveOperationException | RuntimeException e) {
-                    LOG.warn("Could not read DailyPass level data", e);
-                }
-            });
-            hook.set(null, (Runnable) () -> {
-                pending.set(null);
-                nextRequest = Util.getMeasuringTimeMs() + REQUEST_INTERVAL_MS;
-                manual.run();
-            });
-        } catch (ReflectiveOperationException | LinkageError e) {
-            reader = null;
-            LOG.warn("Could not start DailyPass level link", e);
-        }
     }
 
     private void tick(MinecraftClient client) {
@@ -101,57 +60,59 @@ public final class DailyPassXpLink implements ClientModInitializer {
             }
         }
 
-        if (reader == null || client.player == null || client.getNetworkHandler() == null) return;
-        if (!ClientPlayNetworking.canSend(REQUEST)) {
-            state = "unsupported";
-            return;
+        if (client.player == null || client.getNetworkHandler() == null) return;
+        if (reader != null && reader.isViewer(client.currentScreen)) {
+            capture(client);
         }
-        state = "waiting";
-        long visit = lastVisit;
-        if (visit == 0 || now - visit > VIEWER_WINDOW_MS || now < nextRequest) return;
-        pending.set(client.getNetworkHandler());
-        nextRequest = now + REQUEST_INTERVAL_MS;
-        ClientPlayNetworking.send(REQUEST, PacketByteBufs.empty());
+        if (progress.snapshot == null) {
+            String state = reader != null && ClientPlayNetworking.canSend(REQUEST) ? "waitingForViewer" : "unsupported";
+            if (!state.equals(progress.state)) progress = new Progress(state, null);
+        }
     }
 
     DailyPassFares.Data fareData() {
         return fareData;
     }
 
-    private void apply(MinecraftClient client, ClientPlayNetworkHandler handler, List<?> entries) {
-        if (client.getNetworkHandler() != handler || client.player == null) return;
+    private void capture(MinecraftClient client) {
         try {
-            snapshot = reader.ownProgress(entries, client.player.getGameProfile().getName());
+            // The DailyPass screen already owns the decoded reply from its native item.
+            List<?> entries = reader.entries(client.currentScreen);
+            if (observedEntries == entries) return;
+            observedEntries = entries;
+            Snapshot snapshot = reader.ownProgress(entries, client.player.getGameProfile().getName());
+            if (snapshot != null) progress = new Progress("ready", snapshot);
         } catch (ReflectiveOperationException | RuntimeException e) {
-            LOG.warn("Could not find own DailyPass progress", e);
+            reader = null;
+            LOG.warn("Could not read the DailyPass level viewer", e);
         }
     }
 
     private void reset() {
-        pending.set(null);
-        snapshot = null;
-        state = "offline";
-        nextRequest = 0;
+        observedEntries = null;
+        progress = new Progress("offline", null);
     }
 
-    String visit() {
-        long now = Util.getMeasuringTimeMs();
-        lastVisit = now;
-        Snapshot value = snapshot;
-        if (value == null || now - value.receivedAt > SNAPSHOT_LIFETIME_MS) {
-            return "{\"state\":\"" + state + "\"}";
-        }
+    String readProgress() {
+        Progress current = progress;
+        Snapshot value = current.snapshot;
+        if (value == null) return "{\"state\":\"" + current.state + "\"}";
         return "{\"state\":\"ready\",\"stars\":" + value.stars + ",\"level\":" + value.level
-                + ",\"xp\":" + value.xp + ",\"need\":" + value.need + "}";
+                + ",\"xp\":" + value.xp + ",\"need\":" + value.need + ",\"updatedAt\":" + value.updatedAt + "}";
     }
 
-    private record Snapshot(int stars, int level, long xp, long need, long receivedAt) {}
+    private record Progress(String state, Snapshot snapshot) {}
+    private record Snapshot(int stars, int level, long xp, long need, long updatedAt) {}
 
     private static final class ProgressReader {
-        private final Method read, name, overall, stars, level, xp, need;
+        private final Class<?> viewer;
+        private final Field entries;
+        private final Method name, overall, stars, level, xp, need;
 
         ProgressReader() throws ReflectiveOperationException {
-            read = Class.forName("jp.dailypass.progress.LevelNetwork").getMethod("read", PacketByteBuf.class);
+            viewer = Class.forName("jp.dailypass.progress.client.LevelScreen");
+            entries = viewer.getDeclaredField("entries");
+            entries.setAccessible(true);
             Class<?> entry = Class.forName("jp.dailypass.progress.LevelNetwork$Entry");
             name = entry.getMethod("name");
             overall = entry.getMethod("overall");
@@ -162,8 +123,12 @@ public final class DailyPassXpLink implements ClientModInitializer {
             need = row.getMethod("need");
         }
 
-        List<?> read(PacketByteBuf packet) throws ReflectiveOperationException {
-            return (List<?>) read.invoke(null, packet);
+        boolean isViewer(Screen screen) {
+            return viewer.isInstance(screen);
+        }
+
+        List<?> entries(Screen screen) throws IllegalAccessException {
+            return (List<?>) entries.get(screen);
         }
 
         Snapshot ownProgress(List<?> entries, String playerName) throws ReflectiveOperationException {
@@ -171,7 +136,7 @@ public final class DailyPassXpLink implements ClientModInitializer {
                 if (!playerName.equals(name.invoke(entry))) continue;
                 Object row = overall.invoke(entry);
                 return new Snapshot((int) stars.invoke(row), (int) level.invoke(row),
-                        (long) xp.invoke(row), (long) need.invoke(row), Util.getMeasuringTimeMs());
+                        (long) xp.invoke(row), (long) need.invoke(row), System.currentTimeMillis());
             }
             return null;
         }

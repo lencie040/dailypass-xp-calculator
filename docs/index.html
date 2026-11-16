@@ -135,7 +135,7 @@
         <div class="connection-actions">
           <button type="button" id="connect">Minecraft と接続</button>
           <a id="local-version" href="http://127.0.0.1:38767/">ローカル版</a>
-          <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.1/dailypass-xp-link-1.2.1.jar">連携MODをダウンロード</a>
+          <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.2/dailypass-xp-link-1.2.2.jar">連携MODをダウンロード</a>
         </div>
       </div>
       <div class="field">
@@ -652,11 +652,19 @@
 
   async function poll() {
     try {
-      const response = await fetch(localOrigin + '/api/progress', {
+      // Older bridge versions start multiplayer requests when their progress URL is read.
+      const response = await fetch(localOrigin + '/api/progress/passive', {
         targetAddressSpace: 'loopback',
         cache: 'no-store',
         signal: AbortSignal.timeout(3500)
       });
+      if (response.status === 404) {
+        clearLive();
+        following = false;
+        connect.hidden = false;
+        connectionStatus.textContent = '連携MODを1.2.2以降に更新し、Minecraftを再起動してください。';
+        return;
+      }
       if (!response.ok) throw new Error('接続できませんでした');
       const data = await response.json();
       retryConnection = true;
@@ -666,12 +674,14 @@
           live = next;
           render();
         }
-        connectionStatus.textContent = 'Minecraft に接続中 · 自動更新';
+        const updated = new Date(data.updatedAt);
+        const time = Number.isFinite(updated.getTime()) ? ' · ' + updated.toLocaleTimeString('ja-JP') + ' 取得' : '';
+        connectionStatus.textContent = 'ゲーム内の「乗車レベル」を開くと更新します。' + time;
       } else {
         clearLive();
         connectionStatus.textContent = {
-          offline: 'Minecraft でサーバーに入ると読み込みます。',
-          waiting: 'サーバーの乗車レベルを読み込み中…',
+          offline: 'Minecraft でサーバーに入ったら「乗車レベル」を開いてください。',
+          waitingForViewer: 'Minecraft で DailyPass の「乗車レベル」を開いてください。',
           unsupported: '接続先が DailyPass の乗車レベルに対応していません。',
           ready: 'サーバーのレベルまたはXPが、この計算機の対応範囲外です。'
         }[data.state] ?? '連携MODからの応答を確認できませんでした。';

@@ -71,8 +71,8 @@ final class LocalSite implements AutoCloseable {
         }
 
         String path = exchange.getRequestURI().getPath();
-        if (path.equals("/api/progress")) {
-            handleJson(exchange, link::visit);
+        if (path.equals("/api/progress/passive") || path.equals("/api/progress")) {
+            handleJson(exchange, link::readProgress);
         } else if (path.equals("/api/mtrops/routes")) {
             handleJson(exchange, mtrops::read);
         } else if (path.equals("/api/mtrops/loops")) {

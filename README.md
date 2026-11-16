@@ -2,13 +2,13 @@
 
 [計算機を開く](https://lencie040.github.io/dailypass-xp-calculator/)
 
-## 自動更新
+## 現在のレベルを取り込む
 
-1. [DailyPass XP Link 1.2.1](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.1/dailypass-xp-link-1.2.1.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。旧版が入っている場合は差し替えます。
+1. [DailyPass XP Link 1.2.2](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.2/dailypass-xp-link-1.2.2.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。旧版が入っている場合は差し替えます。
 2. Minecraft を再起動し、DailyPass が動いているサーバーに入ります。
-3. 同じPCで計算機を開いて、目標レベルを入力します。Chromeで初めて開くときは「Minecraft と接続」を押して、ローカルネットワークへのアクセスを許可します。
+3. MinecraftでDailyPassの「乗車レベル」を開き、同じPCで計算機に目標レベルを入力します。Chromeで初めて開くときは「Minecraft と接続」を押して、ローカルネットワークへのアクセスを許可します。数値を更新するときはゲーム内の「乗車レベル」を開き直します。
 
-連携MODはサーバーに追加する必要がありません。DailyPassの乗車レベル画面と同じ問い合わせで、自分の総合レベルとXPを読み取ります。ブラウザには同じPCの `127.0.0.1` 経由で渡し、GitHubは計算機のファイルを配信します。
+連携MODはクライアントだけに導入します。DailyPassの乗車レベル画面に届いたデータから自分の総合レベルとXPを読み取り、最後に取得した数値と取得時刻を保持します。ブラウザは同じPCの `127.0.0.1` からその値を読みます。
 
 ブラウザで接続できない場合は、Minecraftの起動中に [ローカル版](http://127.0.0.1:38767/) を開けます。手動入力も使えます。
 
@@ -34,4 +34,4 @@
 
 ## ビルド
 
-JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.2.1.jar` が生成されます。
+JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.2.2.jar` が生成されます。
