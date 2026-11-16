@@ -39,9 +39,13 @@
     display: block; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #bdc8c1;
     border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums;
   }
+  textarea {
+    display: block; width: 100%; min-height: 70px; padding: 10px 12px; border: 1px solid #bdc8c1;
+    border-radius: 8px; background: #fff; color: var(--ink); font: inherit; resize: vertical;
+  }
   input::placeholder { color: #667875; }
-  input:focus-visible, label:focus-within, summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
-  input[aria-invalid="true"] { border-color: #ab4931; }
+  input:focus-visible, textarea:focus-visible, label:focus-within, summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  [aria-invalid="true"] { border-color: #ab4931; }
   .modes { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
   .modes label { display: block; position: relative; margin: 0; border-radius: 6px; cursor: pointer; }
   .modes span { display: block; min-height: 30px; padding: 4px 9px; border: 1px solid transparent; border-radius: 6px; font-size: 0.78rem; color: var(--muted); }
@@ -58,11 +62,24 @@
   .shortcuts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
   .shortcuts button { min-height: 34px; border: 1px solid #bdd7c9; background: #edf5ee; color: var(--teal); font-size: 0.81rem; }
   .shortcuts button:disabled { border-color: var(--line); background: transparent; color: var(--muted); cursor: default; }
+  .goal-tools { margin-top: 7px; }
+  #goal-link:not([hidden]) { margin-top: 8px; }
+  #goal-link[hidden] { display: none; }
+  .goals { display: grid; gap: 6px; list-style: none; margin: 9px 0 0; padding: 0; }
+  .goals li { display: flex; gap: 6px; justify-content: space-between; align-items: center; }
   .manual { margin-top: 14px; padding-bottom: 0; }
   .manual > .field { margin-top: 12px; }
   .plan-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
   .plan-fields label { font-size: 0.82rem; }
   .plan-status { min-height: 2.5em; }
+  .check { display: flex; gap: 7px; align-items: center; margin: 8px 0 0; font-size: 0.8rem; font-weight: 600; }
+  .result-column { min-width: 0; }
+  .milestones { margin-top: 12px; padding: clamp(16px, 3vw, 24px); background: #fffef9; border: 1px solid var(--line); border-radius: 14px; }
+  .table-wrap { max-height: 300px; overflow: auto; margin-top: 11px; }
+  .milestones table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .milestones th, .milestones td { padding: 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  .milestones th:first-child, .milestones td:first-child { text-align: left; }
+  .milestones th { position: sticky; top: 0; color: var(--ink); background: #fffef9; }
   .results { background: #153a33; color: #f8f8ed; }
   .results h2 { color: #bde1c9; margin-bottom: 13px; }
   .route { display: flex; justify-content: space-between; gap: 12px; position: relative; margin-bottom: 22px; }
@@ -117,7 +134,7 @@
         <div class="connection-actions">
           <button type="button" id="connect">Minecraft と接続</button>
           <a id="local-version" href="http://127.0.0.1:38767/">ローカル版</a>
-          <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.1/dailypass-xp-link-1.0.1.jar">連携MODをダウンロード</a>
+          <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.2/dailypass-xp-link-1.0.2.jar">連携MODをダウンロード</a>
         </div>
       </div>
       <div class="field">
@@ -129,7 +146,18 @@
           <button type="button" id="next-star" disabled>次の星</button>
           <button type="button" id="max-level">上限レベル</button>
         </div>
+        <div class="shortcuts goal-tools">
+          <button type="button" id="save-goal" disabled>目標を保存</button>
+          <button type="button" id="copy-goal" disabled>目標リンクをコピー</button>
+        </div>
+        <p class="hint" id="goal-feedback" role="status" hidden></p>
+        <input id="goal-link" type="text" hidden readonly aria-label="共有する目標リンク">
       </div>
+      <details class="manual" id="saved-goals">
+        <summary>保存した目標</summary>
+        <p id="saved-empty">目標を5件まで保存できます。</p>
+        <ul class="goals" id="goals"></ul>
+      </details>
       <details class="manual">
         <summary>現在地を手動入力</summary>
       <div class="field">
@@ -158,13 +186,27 @@
             <label for="rate">1 kmあたりのXP</label>
             <input id="rate" type="text" inputmode="decimal" placeholder="標準 5" maxlength="18" aria-describedby="plan-status">
           </div>
+          <div>
+            <label for="rides-per-day">1日あたりの乗車回数</label>
+            <input id="rides-per-day" type="text" inputmode="numeric" placeholder="例 2" maxlength="7" aria-describedby="plan-status">
+          </div>
         </div>
         <p class="plan-status" id="plan-status" role="status">同じ距離を繰り返し乗るときの回数を計算できます。</p>
+      </details>
+      <details class="manual">
+        <summary>複数区間のレベル予測</summary>
+        <div class="field">
+          <label for="segments">各区間の距離（km）</label>
+          <textarea id="segments" rows="2" placeholder="例 0.39, 2.5, 6.2" maxlength="2000" aria-describedby="segment-result"></textarea>
+          <label class="check"><input id="single-settlement" type="checkbox">全区間をまとめて1回で精算</label>
+          <p id="segment-result" class="plan-status" role="status">距離をカンマや改行で区切って入力してください。</p>
+        </div>
       </details>
       <p class="error" id="error" role="status" hidden></p>
     </form>
 
-    <section class="card results" aria-labelledby="results-heading" aria-live="polite" aria-atomic="true">
+    <div class="result-column">
+      <section class="card results" aria-labelledby="results-heading" aria-live="polite" aria-atomic="true">
       <h2 id="results-heading">目標まで</h2>
       <div class="route">
         <div class="stop"><small>現在</small><strong id="from">—</strong></div>
@@ -179,12 +221,23 @@
         <p class="bar-label" id="progress-label"></p>
         <progress id="progress" aria-labelledby="progress-label"></progress>
       </div>
-    </section>
+      </section>
+      <details class="milestones" id="milestones">
+        <summary>途中のレベルごとの必要XP</summary>
+        <p id="milestone-status">現在地と目標を入力すると表示されます。</p>
+        <div class="table-wrap" id="milestone-table" hidden tabindex="0" aria-label="途中レベルの一覧">
+          <table>
+            <thead><tr><th scope="col">到達レベル</th><th scope="col">必要XP</th><th scope="col">距離の目安（km）</th></tr></thead>
+            <tbody id="milestone-rows"></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
   </div>
 
   <details>
     <summary>距離の計算条件</summary>
-    <p>現在のレベル・獲得XP・次に必要なXPには、連携MODが受け取ったサーバーの値を使います。それより先のレベルは DailyPass 1.39.0 の標準設定が基準です。距離換算は標準で1 kmあたり5 XPです。乗車プランでは、1回の乗車を1回の精算としてXPの端数を切り捨てます。</p>
+    <p>現在のレベル・獲得XP・次に必要なXPには、連携MODが受け取ったサーバーの値を使います。それより先のレベルは DailyPass 1.39.0 の標準設定が基準です。距離換算は標準で1 kmあたり5 XPです。精算ごとにXPの端数を切り捨てます。</p>
   </details>
 </main>
 
@@ -218,13 +271,25 @@
   const nextStar = byId('next-star');
   const rideKmField = byId('ride-km');
   const rateField = byId('rate');
+  const ridesPerDayField = byId('rides-per-day');
   const planStatus = byId('plan-status');
+  const segmentsField = byId('segments');
+  const segmentResult = byId('segment-result');
+  const milestones = byId('milestones');
+  const saveGoal = byId('save-goal');
+  const copyGoal = byId('copy-goal');
+  const goalFeedback = byId('goal-feedback');
+  const goalLink = byId('goal-link');
   const targetStorageKey = 'dailypass-xp-target';
+  const goalsStorageKey = 'dailypass-xp-goals';
+  const maxGoals = 5;
+  const publishedUrl = 'https://lencie040.github.io/dailypass-xp-calculator/';
   const localOrigin = 'http://127.0.0.1:38767';
   const isLocal = location.origin === localOrigin;
   let live = null;
   let following = false;
   let retryConnection = isLocal;
+  let goals = loadGoals();
 
   function normalize(text) {
     return text.normalize('NFKC').replace(/\s/gu, '');
@@ -291,6 +356,15 @@
     return rate !== null && rate >= 0.01 && rate <= 1000 ? rate : null;
   }
 
+  function readRideKm(text) {
+    const km = readPositive(text);
+    return km !== null && km >= 0.001 && km <= 1_000_000 ? km : null;
+  }
+
+  function xpForRide(km, rate) {
+    return Math.floor((km * 1000) * (rate / 1000));
+  }
+
   function distanceForXp(xp, rate) {
     const xpPerMeter = rate / 1000;
     const meters = Math.floor(xp / xpPerMeter);
@@ -300,33 +374,112 @@
   function renderPlan(remaining, rate) {
     rideKmField.removeAttribute('aria-invalid');
     rateField.removeAttribute('aria-invalid');
+    ridesPerDayField.removeAttribute('aria-invalid');
     if (rate === null) {
       rateField.setAttribute('aria-invalid', 'true');
       planStatus.textContent = '1 kmあたりのXPは0.01〜1,000で入力してください。';
+      return;
+    }
+    const perDayText = normalize(ridesPerDayField.value);
+    const perDay = /^\d{1,7}$/u.test(perDayText) ? Number(perDayText) : 0;
+    if (perDayText && (perDay < 1 || perDay > 1000)) {
+      ridesPerDayField.setAttribute('aria-invalid', 'true');
+      planStatus.textContent = '1日あたりの乗車回数は1〜1,000の整数で入力してください。';
       return;
     }
     if (!rideKmField.value.trim()) {
       planStatus.textContent = '同じ距離を繰り返し乗るときの回数を計算できます。';
       return;
     }
-    const km = readPositive(rideKmField.value);
-    if (km === null || km < 0.001 || km > 1_000_000) {
+    const km = readRideKm(rideKmField.value);
+    if (km === null) {
       rideKmField.setAttribute('aria-invalid', 'true');
       planStatus.textContent = '乗車距離は0.001〜1,000,000 kmで入力してください。';
       return;
     }
-    const rideXp = Math.floor((km * 1000) * (rate / 1000));
+    const rideXp = xpForRide(km, rate);
     const perRide = '1回 ' + intFormat.format(rideXp) + ' XP';
     if (remaining === 0) {
-      planStatus.textContent = perRide + ' · あと0回';
+      planStatus.textContent = perRide + ' · あと0回' + (perDay ? '（0日）' : '');
     } else if (rideXp === 0) {
       planStatus.textContent = perRide + ' · 1 XPに必要な乗車距離は ' + kmFormat.format(distanceForXp(1, rate)) + ' km';
     } else if (remaining === null) {
       planStatus.textContent = perRide;
     } else {
       const trips = Math.ceil(remaining / rideXp);
-      planStatus.textContent = perRide + ' · あと' + intFormat.format(trips) + '回（合計 ' + kmFormat.format(trips * km) + ' km）';
+      const days = perDay ? ' · ' + intFormat.format(Math.ceil(trips / perDay)) + '日' : '';
+      planStatus.textContent = perRide + ' · あと' + intFormat.format(trips) + '回（合計 ' + kmFormat.format(trips * km) + ' km）' + days;
     }
+  }
+
+  function rankAfterXp(progress, added) {
+    if (added === 0) return progress;
+    let { rank, xp, need } = progress;
+    xp += added;
+    while (rank < maxRank && xp >= need) {
+      xp -= need;
+      rank += 1;
+      need = levelXp(rank);
+    }
+    return { rank, xp: Math.min(xp, need), need };
+  }
+
+  function renderSegments(progress, remaining, rate) {
+    segmentsField.removeAttribute('aria-invalid');
+    const raw = segmentsField.value.normalize('NFKC').trim();
+    const parts = raw.split(/[\s,+、]+/u).filter(Boolean);
+    if (parts.length === 0) {
+      segmentResult.textContent = '距離をカンマや改行で区切って入力してください。';
+      return;
+    }
+    const lengths = parts.map(readRideKm);
+    if (lengths.some(km => km === null)) {
+      segmentsField.setAttribute('aria-invalid', 'true');
+      segmentResult.textContent = '各区間の距離を0.001〜1,000,000 kmで入力してください。';
+      return;
+    }
+    if (rate === null) {
+      segmentResult.textContent = '乗車プランで1 kmあたりのXPを確認してください。';
+      return;
+    }
+    const km = lengths.reduce((total, length) => total + length, 0);
+    const added = byId('single-settlement').checked ? xpForRide(km, rate)
+      : lengths.reduce((total, length) => total + xpForRide(length, rate), 0);
+    const summary = ['合計 ' + kmFormat.format(km) + ' km で +' + intFormat.format(added) + ' XP'];
+    if (progress) {
+      const forecast = rankAfterXp(progress, added);
+      summary.push('到着時 ' + rankLabel(forecast.rank) + '（' + intFormat.format(forecast.xp) + ' / ' + intFormat.format(forecast.need) + ' XP）');
+    }
+    if (remaining !== null) {
+      summary.push(added >= remaining ? '目標に到達' : '目標まであと ' + intFormat.format(remaining - added) + ' XP');
+    }
+    segmentResult.textContent = summary.join(' · ');
+  }
+
+  function renderMilestones(current, progress, target, rate) {
+    if (!milestones.open) return;
+    const table = byId('milestone-table');
+    const status = byId('milestone-status');
+    const reached = current !== null && target !== null && target <= current;
+    if (!progress || target === null || reached) {
+      table.hidden = true;
+      status.textContent = reached ? '目標のレベルに到達済みです。' : '現在地と目標を入力すると表示されます。';
+      return;
+    }
+    let xp = progress.need - progress.xp;
+    const rows = document.createDocumentFragment();
+    for (let rank = progress.rank + 1; rank <= target; rank += 1) {
+      const row = document.createElement('tr');
+      const km = rate === null ? '—' : kmFormat.format(distanceForXp(xp, rate));
+      for (const text of [rankLabel(rank), intFormat.format(xp), km]) {
+        row.insertCell().textContent = text;
+      }
+      rows.append(row);
+      xp += levelXp(rank);
+    }
+    byId('milestone-rows').replaceChildren(rows);
+    status.textContent = '現在地から各レベルに届くまでの累計です。';
+    table.hidden = false;
   }
 
   function currentRank() {
@@ -353,12 +506,83 @@
     render();
   }
 
+  function loadGoals() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(goalsStorageKey));
+      if (Array.isArray(saved)) {
+        return [...new Set(saved.filter(rank => Number.isInteger(rank) && rank >= 0 && rank <= maxRank))].slice(0, maxGoals);
+      }
+    } catch {
+      // A new list is available even if browser storage could not be read.
+    }
+    return [];
+  }
+
+  function changeGoals(next, text) {
+    goals = next;
+    try {
+      localStorage.setItem(goalsStorageKey, JSON.stringify(goals));
+    } catch {
+      text += ' このタブを開いている間だけ保持します。';
+    }
+    goalFeedback.textContent = text;
+    goalFeedback.hidden = false;
+    renderGoals();
+    render();
+  }
+
+  function renderGoals() {
+    byId('saved-empty').hidden = goals.length > 0;
+    const items = [];
+    for (const rank of goals) {
+      const item = document.createElement('li');
+      const select = document.createElement('button');
+      select.type = 'button';
+      select.textContent = rankLabel(rank);
+      select.addEventListener('click', () => selectTarget(rank));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = '解除';
+      remove.setAttribute('aria-label', rankLabel(rank) + ' の保存を解除');
+      remove.addEventListener('click', () => {
+        changeGoals(goals.filter(value => value !== rank), rankLabel(rank) + ' の保存を解除しました。');
+        byId('saved-goals').querySelector('summary').focus();
+      });
+      item.append(select, remove);
+      items.push(item);
+    }
+    byId('goals').replaceChildren(...items);
+  }
+
+  async function shareGoal() {
+    const rank = readRank(targetField.value);
+    if (rank === null) return;
+    const url = new URL(publishedUrl);
+    url.searchParams.set('target', String(rank));
+    try {
+      await navigator.clipboard.writeText(url.href);
+      goalLink.hidden = true;
+      goalFeedback.textContent = '目標リンクをコピーしました。';
+    } catch {
+      goalLink.value = url.href;
+      goalLink.dataset.rank = String(rank);
+      goalLink.hidden = false;
+      goalLink.focus();
+      goalLink.select();
+      goalFeedback.textContent = '表示された目標リンクをコピーしてください。';
+    }
+    goalFeedback.hidden = false;
+  }
+
   function render() {
     const current = currentRank();
     const target = readRank(targetField.value);
     const rate = readRate();
     const remainingMode = form.elements.mode.value === 'remaining';
     const need = live?.need ?? (current === null ? null : levelXp(current));
+    const xp = live ? { earned: live.xp }
+      : current !== null && xpField.value.trim() ? readXp(xpField.value, need, remainingMode) : null;
+    const progress = xp && !xp.error ? { rank: current, xp: xp.earned, need } : null;
     xpField.placeholder = remainingMode ? '例 76' : need === null ? '40 / 116 または 40' : '0 / ' + intFormat.format(need);
     xpHint.textContent = remainingMode ? '次のレベルに必要な、残りのXPを入力してください。'
       : 'ゲーム画面の「40 / 116」のような表示を使えます。';
@@ -368,53 +592,55 @@
     error.textContent = '';
     byId('from').textContent = current === null ? '—' : rankLabel(current);
     byId('to').textContent = target === null ? '—' : rankLabel(target);
-    byId('needed').textContent = '—';
-    byId('distance').textContent = '—';
-    byId('progress-wrap').hidden = true;
-    byId('status').textContent = '接続するか、現在地を手動で入力してください。';
     nextLevel.disabled = current === null || current >= maxRank;
     nextStar.disabled = current === null || nextStarRank(current) > maxRank;
-    renderPlan(null, rate);
+    saveGoal.disabled = target === null || goals.length >= maxGoals || goals.includes(target);
+    copyGoal.disabled = target === null;
+    if (goalLink.dataset.rank !== String(target)) goalLink.hidden = true;
 
     if (!live && current === null && currentField.value.trim()) {
       showProblem(currentField, '現在のレベルは0〜599の数値か、[★]Lv.20 のように入力してください。');
     } else if (target === null && targetField.value.trim()) {
       showProblem(targetField, '目標のレベルは0〜599の数値か、[★]Lv.20 のように入力してください。');
-    } else if (current !== null && (live || xpField.value.trim())) {
-      const xp = live ? { earned: live.xp } : readXp(xpField.value, need, remainingMode);
-      if (xp.error) {
-        showProblem(xpField, xp.error);
-        return;
-      }
-
-      if (current !== maxRank) {
-        const bar = byId('progress');
-        bar.max = need;
-        bar.value = xp.earned;
-        byId('progress-label').textContent = '現在の経験値 ' + intFormat.format(xp.earned) + ' / ' + intFormat.format(need) + ' XP';
-        byId('progress-wrap').hidden = false;
-      }
-      if (target === null) {
-        byId('status').textContent = '目標のレベルを入力してください。';
-        return;
-      }
-
-      const remaining = xpToGoal(current, xp.earned, target, need);
-      byId('needed').textContent = intFormat.format(remaining);
-      byId('distance').textContent = remaining === 0 ? '0' : rate === null ? '—' : kmFormat.format(distanceForXp(remaining, rate));
-      renderPlan(remaining, rate);
-      byId('status').textContent = target <= current
-        ? '目標のレベルに到達済みです。'
-        : '次の ' + rankLabel(current + 1) + ' まで ' + intFormat.format(need - xp.earned) + ' XP';
-      if (live && need !== levelXp(current) && target > current + 1) {
-        byId('status').textContent += '。次のレベル以降は標準設定での概算です。';
-      }
-    } else if (current === maxRank && target !== null) {
-      byId('needed').textContent = '0';
-      byId('distance').textContent = '0';
-      byId('status').textContent = '上限レベルに到達済みです。';
-      renderPlan(0, rate);
+    } else if (xp?.error) {
+      showProblem(xpField, xp.error);
     }
+
+    const remaining = renderResults(current, progress, target, rate);
+    renderPlan(remaining, rate);
+    renderSegments(progress, remaining, rate);
+    renderMilestones(current, progress, target, rate);
+  }
+
+  function renderResults(current, progress, target, rate) {
+    const canShowProgress = progress !== null && current < maxRank;
+    byId('progress-wrap').hidden = !canShowProgress;
+    if (canShowProgress) {
+      const bar = byId('progress');
+      bar.max = progress.need;
+      bar.value = progress.xp;
+      byId('progress-label').textContent = '現在の経験値 ' + intFormat.format(progress.xp)
+        + ' / ' + intFormat.format(progress.need) + ' XP';
+    }
+
+    const remaining = target === null ? null : progress ? xpToGoal(current, progress.xp, target, progress.need)
+      : current === maxRank ? 0 : null;
+    byId('needed').textContent = remaining === null ? '—' : intFormat.format(remaining);
+    byId('distance').textContent = remaining === 0 ? '0'
+      : remaining === null || rate === null ? '—' : kmFormat.format(distanceForXp(remaining, rate));
+
+    const status = byId('status');
+    if (remaining === null) {
+      status.textContent = progress ? '目標のレベルを入力してください。' : '接続するか、現在地を手動で入力してください。';
+    } else if (target <= current) {
+      status.textContent = '目標のレベルに到達済みです。';
+    } else {
+      status.textContent = '次の ' + rankLabel(current + 1) + ' まで ' + intFormat.format(progress.need - progress.xp) + ' XP';
+      if (live && progress.need !== levelXp(current) && target > current + 1) {
+        status.textContent += '。次のレベル以降は標準設定での概算です。';
+      }
+    }
+    return remaining;
   }
 
   function validSnapshot(data) {
@@ -483,13 +709,27 @@
   nextLevel.addEventListener('click', () => selectTarget(currentRank() + 1));
   nextStar.addEventListener('click', () => selectTarget(nextStarRank(currentRank())));
   byId('max-level').addEventListener('click', () => selectTarget(maxRank));
+  saveGoal.addEventListener('click', () => {
+    const rank = readRank(targetField.value);
+    if (rank === null || goals.length >= maxGoals || goals.includes(rank)) return;
+    changeGoals([...goals, rank], rankLabel(rank) + ' を保存しました。');
+    byId('saved-goals').open = true;
+  });
+  copyGoal.addEventListener('click', shareGoal);
+  milestones.addEventListener('toggle', render);
   connect.addEventListener('click', () => follow());
-  try {
-    const saved = localStorage.getItem(targetStorageKey);
-    if (saved !== null && readRank(saved) !== null) targetField.value = saved;
-  } catch {
-    // The calculator also works when the browser denies storage.
+  const shared = readRank(new URLSearchParams(location.search).get('target') ?? '');
+  if (shared !== null) {
+    targetField.value = String(shared);
+  } else {
+    try {
+      const saved = localStorage.getItem(targetStorageKey);
+      if (saved !== null && readRank(saved) !== null) targetField.value = saved;
+    } catch {
+      // The calculator also works when the browser denies storage.
+    }
   }
+  renderGoals();
   render();
   if (isLocal) {
     byId('local-version').hidden = true;

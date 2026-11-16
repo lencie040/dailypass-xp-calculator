@@ -4,7 +4,7 @@
 
 ## 自動更新
 
-1. [DailyPass XP Link 1.0.1](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.1/dailypass-xp-link-1.0.1.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。
+1. [DailyPass XP Link 1.0.2](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.2/dailypass-xp-link-1.0.2.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。
 2. Minecraft を再起動し、DailyPass が動いているサーバーに入ります。
 3. 同じPCで計算機を開いて、目標レベルを入力します。Chromeで初めて開くときは「Minecraft と接続」を押して、ローカルネットワークへのアクセスを許可します。
 
@@ -14,8 +14,10 @@
 
 `100` は `[★]Lv.0`、`599` は `[★★★★★]Lv.99` として指定できます。前回の目標は同じブラウザに保存されます。「乗車プラン」で1回の乗車距離とXP換算を指定すると、精算ごとの切り捨てを含めた回数が分かります。
 
+「保存した目標」は5件まで切り替えられます。「目標リンクをコピー」では目標レベルだけを共有できます。結果の下には途中のレベルごとの累計XPと距離が表示されます。「複数区間のレベル予測」では別々の精算と一括精算を切り替えられます。毎日の乗車回数を決めている場合は、乗車プランで残り日数も計算できます。
+
 今のレベルの必要XPにはサーバーの値を使います。以降のレベルと距離は DailyPass の標準設定で計算します。距離に応じてXPが付く場合の換算は1 kmあたり5 XPで、精算ごとに端数が切り捨てられます。
 
 ## ビルド
 
-JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.0.1.jar` が生成されます。
+JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.0.2.jar` が生成されます。
