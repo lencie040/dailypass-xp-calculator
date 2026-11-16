@@ -44,22 +44,34 @@ final class MtropsRoutes implements AutoCloseable {
         return thread;
     });
     private final Supplier<DailyPassFares.Data> fareData;
-    private String cached;
+    private Network cached;
     private long cachedAt;
+    private final MtropsLoops loops = new MtropsLoops(this);
 
     MtropsRoutes(Supplier<DailyPassFares.Data> fareData) {
         this.fareData = fareData;
     }
 
-    synchronized String read() {
+    String read() {
+        Network network = network();
+        return GSON.toJson(new Result(network.state, network.fares != null && network.fares.distanceFare(),
+                network.fares == null ? Map.of() : network.fares.names(),
+                network.patterns.stream().map(Pattern::route).toList()));
+    }
+
+    String readLoops(int transferSeconds) {
+        return GSON.toJson(loops.read(network(), transferSeconds));
+    }
+
+    private synchronized Network network() {
         long now = System.currentTimeMillis();
         if (cached != null && now - cachedAt < CACHE_MS) return cached;
         try {
             JsonObject status = fetch("status");
-            if (!flag(status, "connected") || flag(status, "stale")) return "{\"state\":\"stale\"}";
+            if (!flag(status, "connected") || flag(status, "stale")) return Network.unavailable("stale");
             JsonArray routeList = array(fetch("routes"), "routes");
             DailyPassFares.Data fares = fareData.get();
-            var details = new ArrayList<CompletableFuture<Route>>();
+            var details = new ArrayList<CompletableFuture<Pattern>>();
             for (JsonElement entry : routeList) {
                 if (entry.isJsonObject()) {
                     JsonObject summary = entry.getAsJsonObject();
@@ -67,32 +79,31 @@ final class MtropsRoutes implements AutoCloseable {
                 }
             }
 
-            List<Route> routes = details.stream().map(CompletableFuture::join).toList();
-            cached = GSON.toJson(new Result("ready", fares != null && fares.distanceFare(),
-                    fares == null ? Map.of() : fares.names(), routes));
+            List<Pattern> patterns = details.stream().map(CompletableFuture::join).toList();
+            cached = new Network("ready", flag(status, "scheduleReceived"), (long) number(status, "topologyRev"), fares, patterns);
             cachedAt = System.currentTimeMillis();
             return cached;
         } catch (IOException | RuntimeException e) {
-            return "{\"state\":\"unavailable\"}";
+            return Network.unavailable("unavailable");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return "{\"state\":\"unavailable\"}";
+            return Network.unavailable("unavailable");
         }
     }
 
-    private Route route(JsonObject summary, DailyPassFares.Data fares) {
+    private Pattern route(JsonObject summary, DailyPassFares.Data fares) {
         String id = label(summary, "id");
         String name = label(summary, "name");
         String number = label(summary, "number");
         String status = label(summary, "status");
         try {
-            if (!id.matches("-?[0-9]{1,20}")) throw new IOException("Invalid route ID");
+            if (!validId(id)) throw new IOException("Invalid route ID");
             JsonObject detail = fetch("routes/" + id + "?points=0");
             JsonArray sectionList = array(detail, "segments");
             List<Station> stations = new ArrayList<>();
             for (JsonElement entry : array(detail, "stations")) {
                 JsonObject stop = entry.getAsJsonObject();
-                stations.add(new Station(label(stop, "name"), number(stop, "cumulativeM")));
+                stations.add(new Station(label(stop, "name"), number(stop, "cumulativeM"), label(stop, "id")));
             }
 
             boolean hasStations = stations.size() >= 2 && stations.size() == sectionList.size() + 1
@@ -106,7 +117,8 @@ final class MtropsRoutes implements AutoCloseable {
                     theory = number(runtime, "runSec") + Math.max(0, number(runtime, "dwellSec"));
                 }
                 double expected = number(runtime, "travelSec");
-                sections.add(new Section(number(section, "distanceM"), expected > 0 ? expected : theory, theory));
+                sections.add(new Section(number(section, "distanceM"), expected > 0 ? expected : theory, theory,
+                        number(runtime, "dwellSec"), flag(section, "measured")));
             }
             double meters = number(detail, "totalM");
             Timing expected = timing(sections, false);
@@ -121,17 +133,18 @@ final class MtropsRoutes implements AutoCloseable {
                     // Distance and timing are still available even if DailyPass cannot attribute this route.
                 }
             }
-            return new Route(id, name, number, label(summary, "destination"), status,
+            Route route = new Route(id, name, number, label(summary, "destination"), status,
                     first == null ? "" : first.name, last == null ? "" : last.name,
                     stations.size(), meters, flag(detail, "allMeasured"), expected, theory,
                     companyMeters, true);
+            return new Pattern(route, hasStations ? List.copyOf(stations) : List.of(), List.copyOf(sections));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException | RuntimeException e) {
             // Keep the route visible when its details cannot be loaded.
         }
-        return new Route(id, name, number, label(summary, "destination"), status,
-                "", "", 0, -1, false, Timing.UNKNOWN, Timing.UNKNOWN, Map.of(), false);
+        return new Pattern(new Route(id, name, number, label(summary, "destination"), status,
+                "", "", 0, -1, false, Timing.UNKNOWN, Timing.UNKNOWN, Map.of(), false), List.of(), List.of());
     }
 
     private static Timing timing(List<Section> sections, boolean theory) {
@@ -155,6 +168,28 @@ final class MtropsRoutes implements AutoCloseable {
         return new Timing(knownSeconds + estimate, missing);
     }
 
+    CompletableFuture<JsonObject> stationTimetable(String id) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (!validId(id)) return null;
+            try {
+                return fetch("schedule/" + id + "?hours=2");
+            } catch (IOException | RuntimeException e) {
+                return null;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }, requests);
+    }
+
+    JsonObject depotList() throws IOException, InterruptedException {
+        return fetch("depots");
+    }
+
+    private static boolean validId(String id) {
+        return id.matches("-?[0-9]{1,20}");
+    }
+
     private JsonObject fetch(String path) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(API_ENDPOINT + path))
                 .timeout(Duration.ofSeconds(3)).GET().build();
@@ -165,7 +200,7 @@ final class MtropsRoutes implements AutoCloseable {
         return value;
     }
 
-    private static JsonArray array(JsonObject json, String key) {
+    static JsonArray array(JsonObject json, String key) {
         JsonElement value = json.get(key);
         if (value == null || !value.isJsonArray()) throw new IllegalArgumentException("Missing array");
         return value.getAsJsonArray();
@@ -176,17 +211,17 @@ final class MtropsRoutes implements AutoCloseable {
         return value != null && value.isJsonObject() ? value.getAsJsonObject() : new JsonObject();
     }
 
-    private static String label(JsonObject json, String key) {
+    static String label(JsonObject json, String key) {
         JsonElement value = json.get(key);
         return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : "";
     }
 
-    private static boolean flag(JsonObject json, String key) {
+    static boolean flag(JsonObject json, String key) {
         JsonElement value = json.get(key);
         return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && value.getAsBoolean();
     }
 
-    private static double number(JsonObject json, String key) {
+    static double number(JsonObject json, String key) {
         JsonElement value = json.get(key);
         if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return -1;
         double number = value.getAsDouble();
@@ -198,13 +233,19 @@ final class MtropsRoutes implements AutoCloseable {
         requests.shutdownNow();
     }
 
-    record Station(String name, double meters) {}
-    private record Section(double meters, double expected, double theory) {}
-    private record Timing(double seconds, int estimatedSections) {
+    record Station(String name, double meters, String id) {}
+    record Section(double meters, double expected, double theory, double dwell, boolean measured) {}
+    record Timing(double seconds, int estimatedSections) {
         private static final Timing UNKNOWN = new Timing(-1, 0);
     }
-    private record Route(String id, String name, String number, String destination, String status,
+    record Route(String id, String name, String number, String destination, String status,
                          String from, String to, int stations, double meters, boolean measured,
                          Timing expected, Timing theory, Map<String, Double> companyMeters, boolean available) {}
+    record Pattern(Route route, List<Station> stops, List<Section> sections) {}
+    record Network(String state, boolean scheduleReady, long revision, DailyPassFares.Data fares, List<Pattern> patterns) {
+        static Network unavailable(String state) {
+            return new Network(state, false, -1, null, List.of());
+        }
+    }
     private record Result(String state, boolean distanceFare, Map<String, String> companies, List<Route> routes) {}
 }

@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -30,9 +31,12 @@ final class LocalSite implements AutoCloseable {
 
     void start() {
         try {
-            byte[] page = asset("calculator.html");
-            byte[] routes = asset("routes.html");
-            byte[] script = asset("routes.js");
+            Map<String, Asset> pages = Map.of(
+                    "/", asset("calculator.html", "text/html"),
+                    "/routes.html", asset("routes.html", "text/html"),
+                    "/routes.js", asset("routes.js", "text/javascript"),
+                    "/loops.html", asset("loops.html", "text/html"),
+                    "/loops.js", asset("loops.js", "text/javascript"));
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
             requests = Executors.newFixedThreadPool(3, task -> {
                 Thread thread = new Thread(task, "DailyPass XP Link HTTP");
@@ -42,7 +46,7 @@ final class LocalSite implements AutoCloseable {
             server.setExecutor(requests);
             server.createContext("/", exchange -> {
                 try (exchange) {
-                    handle(exchange, page, routes, script);
+                    handle(exchange, pages);
                 }
             });
             server.start();
@@ -53,14 +57,14 @@ final class LocalSite implements AutoCloseable {
         }
     }
 
-    private static byte[] asset(String name) throws IOException {
+    private static Asset asset(String name, String type) throws IOException {
         try (var resource = LocalSite.class.getResourceAsStream("/" + name)) {
             if (resource == null) throw new IOException("Missing calculator asset " + name);
-            return resource.readAllBytes();
+            return new Asset(type, resource.readAllBytes());
         }
     }
 
-    private void handle(HttpExchange exchange, byte[] page, byte[] routes, byte[] script) throws IOException {
+    private void handle(HttpExchange exchange, Map<String, Asset> pages) throws IOException {
         if (!HOST.equals(exchange.getRequestHeaders().getFirst("Host"))) {
             exchange.sendResponseHeaders(403, -1);
             return;
@@ -71,15 +75,21 @@ final class LocalSite implements AutoCloseable {
             handleJson(exchange, link::visit);
         } else if (path.equals("/api/mtrops/routes")) {
             handleJson(exchange, mtrops::read);
-        } else if (path.equals("/") && exchange.getRequestMethod().equals("GET")) {
-            send(exchange, "text/html", page);
-        } else if (path.equals("/routes.html") && exchange.getRequestMethod().equals("GET")) {
-            send(exchange, "text/html", routes);
-        } else if (path.equals("/routes.js") && exchange.getRequestMethod().equals("GET")) {
-            send(exchange, "text/javascript", script);
+        } else if (path.equals("/api/mtrops/loops")) {
+            handleJson(exchange, () -> mtrops.readLoops(transferTime(exchange.getRequestURI().getRawQuery())));
+        } else if (pages.containsKey(path) && exchange.getRequestMethod().equals("GET")) {
+            Asset page = pages.get(path);
+            send(exchange, page.type, page.body);
         } else {
             exchange.sendResponseHeaders(404, -1);
         }
+    }
+
+    private static int transferTime(String query) {
+        if (query != null && query.matches("transfer=[0-9]{1,3}")) {
+            return Math.min(600, Integer.parseInt(query.substring("transfer=".length())));
+        }
+        return 15;
     }
 
     private void handleJson(HttpExchange exchange, Supplier<String> body) throws IOException {
@@ -127,4 +137,6 @@ final class LocalSite implements AutoCloseable {
         }
         mtrops.close();
     }
+
+    private record Asset(String type, byte[] body) {}
 }
