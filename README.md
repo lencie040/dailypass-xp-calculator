@@ -4,7 +4,7 @@
 
 ## 自動更新
 
-1. [DailyPass XP Link 1.0.0](https://lencie040.github.io/dailypass-xp-calculator/downloads/dailypass-xp-link-1.0.0.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。
+1. [DailyPass XP Link 1.0.0](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.0/dailypass-xp-link-1.0.0.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。
 2. Minecraft を再起動し、DailyPass が動いているサーバーに入ります。
 3. 同じPCで計算機を開いて、目標レベルを入力します。Chromeで初めて開くときは「Minecraft と接続」を押して、ローカルネットワークへのアクセスを許可します。
 
