@@ -29,22 +29,31 @@ public final class DailyPassXpLink implements ClientModInitializer {
     private final AtomicReference<ClientPlayNetworkHandler> pending = new AtomicReference<>();
     private final LocalSite site = new LocalSite(this);
     private volatile Snapshot snapshot;
+    private volatile DailyPassFares.Data fareData;
     private volatile long lastVisit;
     private volatile String state = "offline";
     private ProgressReader reader;
+    private DailyPassFares fares;
     private long nextRequest;
+    private long nextFareRead;
 
     @Override
     public void onInitializeClient() {
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
-            if (attach()) site.start();
+            attach();
+            try {
+                fares = new DailyPassFares();
+            } catch (ReflectiveOperationException | LinkageError e) {
+                LOG.warn("DailyPass company distance calculator is unavailable", e);
+            }
+            site.start();
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> site.close());
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> reset());
     }
 
-    private boolean attach() {
+    private void attach() {
         try {
             reader = new ProgressReader();
             var hook = Class.forName("jp.dailypass.progress.LevelViewerItem").getField("requestHook");
@@ -54,7 +63,7 @@ public final class DailyPassXpLink implements ClientModInitializer {
                 if (receiver != null) ClientPlayNetworking.registerGlobalReceiver(DATA, receiver);
                 LOG.warn("DailyPass level viewer is unavailable");
                 reader = null;
-                return false;
+                return;
             }
 
             ClientPlayNetworking.registerGlobalReceiver(DATA, (client, handler, buffer, sender) -> {
@@ -74,27 +83,39 @@ public final class DailyPassXpLink implements ClientModInitializer {
                 nextRequest = Util.getMeasuringTimeMs() + REQUEST_INTERVAL_MS;
                 manual.run();
             });
-            return true;
         } catch (ReflectiveOperationException | LinkageError e) {
             reader = null;
             LOG.warn("Could not start DailyPass level link", e);
-            return false;
         }
     }
 
     private void tick(MinecraftClient client) {
+        long now = Util.getMeasuringTimeMs();
+        if (fares != null && now >= nextFareRead) {
+            nextFareRead = now + 5_000;
+            try {
+                fareData = fares.capture();
+            } catch (ReflectiveOperationException e) {
+                fares = null;
+                LOG.warn("Could not read DailyPass company data", e);
+            }
+        }
+
         if (reader == null || client.player == null || client.getNetworkHandler() == null) return;
         if (!ClientPlayNetworking.canSend(REQUEST)) {
             state = "unsupported";
             return;
         }
         state = "waiting";
-        long now = Util.getMeasuringTimeMs();
         long visit = lastVisit;
         if (visit == 0 || now - visit > VIEWER_WINDOW_MS || now < nextRequest) return;
         pending.set(client.getNetworkHandler());
         nextRequest = now + REQUEST_INTERVAL_MS;
         ClientPlayNetworking.send(REQUEST, PacketByteBufs.empty());
+    }
+
+    DailyPassFares.Data fareData() {
+        return fareData;
     }
 
     private void apply(MinecraftClient client, ClientPlayNetworkHandler handler, List<?> entries) {

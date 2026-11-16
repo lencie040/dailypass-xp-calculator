@@ -4,7 +4,7 @@
 
 ## 自動更新
 
-1. [DailyPass XP Link 1.0.2](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.2/dailypass-xp-link-1.0.2.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。
+1. [DailyPass XP Link 1.1.0](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.1.0/dailypass-xp-link-1.1.0.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。
 2. Minecraft を再起動し、DailyPass が動いているサーバーに入ります。
 3. 同じPCで計算機を開いて、目標レベルを入力します。Chromeで初めて開くときは「Minecraft と接続」を押して、ローカルネットワークへのアクセスを許可します。
 
@@ -18,6 +18,12 @@
 
 今のレベルの必要XPにはサーバーの値を使います。以降のレベルと距離は DailyPass の標準設定で計算します。距離に応じてXPが付く場合の換算は1 kmあたり5 XPで、精算ごとに端数が切り捨てられます。
 
+## MTROPS 路線XPランキング
+
+[路線XPランキング](https://lencie040.github.io/dailypass-xp-calculator/routes.html) は、同じPCで動く MTROPS の `localhost:8765` から運行パターンと駅間データを取得します。連携MOD 1.1.0を入れたクライアントで使えます。総合または鉄道会社を選ぶと、始発から終点まで乗ったときの所要時間・1回のXP・XP/時を比較できます。「種別ごとのベスト」では各種別の1位を表示し、ホワイトリストとブラックリストの両方にある種別は除外します。
+
+会社別の対象距離は、クライアントが読み込んだ DailyPass の会社設定と運賃計算から求めます。駅間の時間が欠けた区間を補う場合は推定と表示します。MTROPSのデータはローカルの連携MODとブラウザで受け渡します。
+
 ## ビルド
 
-JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.0.2.jar` が生成されます。
+JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.1.0.jar` が生成されます。

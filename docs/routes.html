@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>MTROPS 路線XPランキング · DailyPass</title>
+<style>
+  :root { font: 16px/1.55 "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; color: #1d2c31; background: #f4f3ec; --ink: #1d2c31; --muted: #536468; --teal: #086c58; --line: #d6dcd2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+  main { width: min(1280px, calc(100% - 44px)); margin: 38px auto; }
+  nav { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 25px; }
+  nav strong { padding-right: 6px; }
+  a { color: var(--teal); text-underline-offset: 3px; }
+  nav [aria-current] { color: var(--ink); font-weight: 710; }
+  h1 { margin: 0 0 6px; font-size: clamp(1.85rem, 4vw, 3rem); letter-spacing: -0.045em; line-height: 1.2; }
+  h2 { margin: 0; font-size: 1.13rem; }
+  p { margin: 0; }
+  .intro, .hint, #status, .meta { color: var(--muted); }
+  .intro { max-width: 58ch; }
+  .toolbar { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin: 17px 0; }
+  button { min-height: 41px; border: 0; border-radius: 8px; background: var(--teal); color: white; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .panel { margin-top: 14px; padding: clamp(14px, 2.5vw, 23px); background: #fffef9; border: 1px solid var(--line); border-radius: 13px; }
+  .controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
+  label { display: block; margin-bottom: 4px; font-size: .83rem; font-weight: 680; }
+  input:not([type="checkbox"]), select, textarea { min-height: 40px; width: 100%; border: 1px solid #becbc2; border-radius: 7px; background: #fff; color: var(--ink); padding: 7px 9px; font: inherit; }
+  [aria-invalid="true"] { border-color: #ad452d !important; }
+  textarea { resize: vertical; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: 12px; }
+  .checks label { display: flex; gap: 6px; align-items: center; margin: 0; color: var(--muted); }
+  summary { cursor: pointer; font-weight: 700; color: var(--teal); width: fit-content; }
+  .filters { margin-top: 14px; }
+  .filters .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 9px; }
+  .hint { font-size: .78rem; margin-top: 6px; }
+  .best { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 18px; background: #153a33; color: #f8f8ed; border-color: #153a33; }
+  .best strong { display: block; font-size: clamp(1rem, 2.5vw, 1.42rem); overflow-wrap: anywhere; }
+  .best .hint { color: #bde1c9; }
+  .best-rate { color: #eaf5aa; font-size: 1.65rem; font-weight: 780; font-variant-numeric: tabular-nums; }
+  .table-title { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 9px; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; min-width: 850px; border-collapse: collapse; }
+  th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+  th { background: #eef2e9; font-size: .76rem; }
+  td small { display: block; color: var(--muted); font-size: .75rem; margin-top: 2px; }
+  .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .route { min-width: 230px; }
+  .endpoints { min-width: 140px; }
+  .mono { white-space: nowrap; }
+  .estimated { color: #805213; }
+  .rate { color: var(--teal); font-weight: 760; }
+  .meta { font-size: .8rem; }
+  #notes { margin: 17px 0 0; }
+  #notes p { max-width: 76ch; }
+  @media (max-width: 720px) {
+    main { width: calc(100% - 26px); margin: 24px auto; }
+    .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .filters .controls { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+<script defer src="./routes.js"></script>
+</head>
+<body>
+<main>
+  <nav aria-label="ページ">
+    <strong>DailyPass</strong>
+    <a href="./">乗車レベル計算機</a>
+    <span aria-current="page">路線XPランキング</span>
+  </nav>
+  <h1>路線XPランキング</h1>
+  <p class="intro">MTROPSで取得した運行パターンを、始発から終点まで乗った場合のXP効率で比較します。</p>
+  <div class="toolbar">
+    <button id="load" type="button">MTROPSを読み込む</button>
+    <span id="status" role="status">同じPCでMTROPSと連携MODを起動してください。</span>
+    <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.1.0/dailypass-xp-link-1.1.0.jar">連携MOD 1.1.0</a>
+  </div>
+  <div class="panel" id="settings" hidden>
+    <div class="controls">
+      <div><label for="company">XPの集計対象</label><select id="company"><option value="">総合</option></select></div>
+      <div><label for="timing">時間の基準</label><select id="timing"><option value="expected">MTROPSの見込み</option><option value="theory">MTRの理論値</option></select></div>
+      <div><label for="grouping">表示する行</label><select id="grouping"><option value="routes">すべての運行パターン</option><option value="types">種別ごとのベスト</option></select></div>
+      <div><label for="sort">並び順</label><select id="sort"><option value="efficiency">XP/時が多い順</option><option value="time">所要時間が短い順</option><option value="xp">1乗車XPが多い順</option></select></div>
+      <div><label for="rate">1 kmあたりのXP</label><input id="rate" type="number" min="0.01" max="1000" step="any" value="5"></div>
+      <div><label for="wait">乗車前の待ち時間（分）</label><input id="wait" type="number" min="0" max="180" step="any" value="0"></div>
+    </div>
+    <div class="checks">
+      <label><input id="operating" type="checkbox">運行中のみ</label>
+      <label><input id="allowEstimate" type="checkbox">精算距離が不明な便も線路距離で概算</label>
+    </div>
+    <details class="filters">
+      <summary>種別のホワイトリスト・ブラックリスト</summary>
+      <div class="controls">
+        <div><label for="allow">残す種別</label><textarea id="allow" rows="2" placeholder="例 急行、ライナー"></textarea></div>
+        <div><label for="deny">除外する種別</label><textarea id="deny" rows="2" placeholder="例 各停、種別なし"></textarea></div>
+      </div>
+      <p class="hint">種別名を改行かカンマで区切ります。ホワイトリストを空欄にすると全種別が対象になります。両方にある種別は除外します。</p>
+      <p class="hint" id="types"></p>
+    </details>
+    <p class="hint" id="numbers" role="status" hidden>XP換算は0.01〜1,000、待ち時間は0〜180分で入力してください。</p>
+  </div>
+
+  <section class="panel best" id="best" aria-labelledby="best-title" hidden>
+    <div><h2 id="best-title">最も効率が高い便</h2><strong id="best-route"></strong><p id="best-detail" class="hint"></p></div>
+    <span id="best-rate" class="best-rate"></span>
+  </section>
+
+  <section class="panel" id="results" aria-labelledby="results-title" hidden>
+    <div class="table-title"><h2 id="results-title">運行パターン</h2><span class="meta" id="count" role="status"></span></div>
+    <p id="empty" class="hint" hidden>条件に合う便がありません。</p>
+    <div id="table" class="table-scroll" tabindex="0" aria-label="XPランキングの表">
+      <table>
+        <thead><tr><th scope="col">路線・種別</th><th scope="col">始発 → 終点</th><th scope="col" class="num">線路距離</th><th scope="col" class="num">所要時間</th><th scope="col" class="num">XP対象距離</th><th scope="col" class="num">1乗車XP</th><th scope="col" class="num">XP/時</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+  <details id="notes">
+    <summary>計算条件</summary>
+    <p class="hint">XPは精算1回分です。DailyPassの距離精算が有効なときは、同じクライアントの会社設定で対象距離を求めます。会社別の効率は、その会社で得るXPを始発から終点までの所要時間で割って比較します。待ち時間は全便に共通の入力値を使います。</p>
+    <p class="hint">所要時間は駅間の到着から次駅到着までの合計です。欠けた区間は同じ便のデータがある区間の平均で補い、推定と表示します。距離だけの概算は、線路距離の全てがXPに加算されると仮定します。運賃（CP）で得るXPは距離から換算できません。</p>
+  </details>
+</main>
+</body>
+</html>

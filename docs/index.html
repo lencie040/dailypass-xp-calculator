@@ -28,6 +28,7 @@
   .version { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
   h1 { margin: 32px 0 9px; font-size: clamp(1.85rem, 5vw, 3.1rem); letter-spacing: -0.045em; line-height: 1.2; }
   .intro { color: var(--muted); margin: 0 0 29px; }
+  .intro a { color: var(--teal); text-underline-offset: 3px; display: inline-block; margin-top: 5px; }
   .layout { display: grid; grid-template-columns: 1fr 1.19fr; gap: 18px; align-items: start; }
   .card { padding: clamp(20px, 3.4vw, 30px); border-radius: 18px; }
   .inputs { background: #fffef9; border: 1px solid var(--line); }
@@ -123,7 +124,7 @@
       <span class="version">1.39.0 · Minecraft 1.19.2</span>
     </div>
     <h1>乗車レベル計算機</h1>
-    <p class="intro">Minecraftの総合レベルを読み取り、目標までに必要なXPと乗車距離を計算します。</p>
+    <p class="intro">Minecraftの総合レベルを読み取り、目標までに必要なXPと乗車距離を計算します。<br><a href="./routes.html">MTROPSの路線XPランキングを見る</a></p>
   </header>
 
   <div class="layout">
@@ -134,7 +135,7 @@
         <div class="connection-actions">
           <button type="button" id="connect">Minecraft と接続</button>
           <a id="local-version" href="http://127.0.0.1:38767/">ローカル版</a>
-          <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.0.2/dailypass-xp-link-1.0.2.jar">連携MODをダウンロード</a>
+          <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.1.0/dailypass-xp-link-1.1.0.jar">連携MODをダウンロード</a>
         </div>
       </div>
       <div class="field">

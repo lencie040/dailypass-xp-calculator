@@ -17,6 +17,7 @@ processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand(version: project.version) }
     from('docs/index.html') { rename { 'calculator.html' } }
+    from('docs') { include 'routes.html', 'routes.js' }
 }
 
 tasks.withType(JavaCompile).configureEach {
