@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "dailypass_xp_link",
+  "version": "${version}",
+  "name": "DailyPass XP Link",
+  "description": "自分の乗車レベルとXPを同じPCの計算サイトに表示します。",
+  "environment": "client",
+  "entrypoints": { "client": ["jp.dailypassxplink.DailyPassXpLink"] },
+  "depends": {
+    "fabricloader": ">=0.14.25",
+    "fabric-api": "*",
+    "minecraft": "1.19.2",
+    "java": ">=17",
+    "dailypass": "1.39.0+mc1.19.2"
+  }
+}

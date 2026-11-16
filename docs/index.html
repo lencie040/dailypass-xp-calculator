@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>DailyPass 乗車レベル計算機</title>
+<style>
+  :root {
+    color: #1d2c31;
+    background: #f4f3ec;
+    font: 16px/1.55 "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    --ink: #1d2c31;
+    --muted: #536468;
+    --teal: #086c58;
+    --line: #dadfd4;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { width: min(1060px, calc(100% - 44px)); margin: 52px auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 750; }
+  .brand-mark { display: block; width: 32px; height: 19px; border-radius: 4px; background: var(--teal); position: relative; }
+  .brand-mark::before, .brand-mark::after { content: ""; position: absolute; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: #f4f3ec; }
+  .brand-mark::before { left: -4px; }
+  .brand-mark::after { right: -4px; }
+  .version { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  h1 { margin: 32px 0 9px; font-size: clamp(1.85rem, 5vw, 3.1rem); letter-spacing: -0.045em; line-height: 1.2; }
+  .intro { color: var(--muted); margin: 0 0 29px; }
+  .layout { display: grid; grid-template-columns: 1fr 1.19fr; gap: 18px; align-items: start; }
+  .card { padding: clamp(20px, 3.4vw, 30px); border-radius: 18px; }
+  .inputs { background: #fffef9; border: 1px solid var(--line); }
+  .card h2 { font-size: 1.02rem; letter-spacing: 0.03em; margin: 0 0 22px; }
+  .field + .field { margin-top: 18px; }
+  label, fieldset legend { display: block; padding: 0; margin-bottom: 6px; font-size: 0.92rem; font-weight: 720; }
+  fieldset { margin: 0; border: 0; padding: 0; min-width: 0; }
+  input[type="text"] {
+    display: block; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #bdc8c1;
+    border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums;
+  }
+  input::placeholder { color: #667875; }
+  input:focus-visible, label:focus-within, summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  input[aria-invalid="true"] { border-color: #ab4931; }
+  .modes { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .modes label { display: block; position: relative; margin: 0; border-radius: 6px; cursor: pointer; }
+  .modes span { display: block; min-height: 30px; padding: 4px 9px; border: 1px solid transparent; border-radius: 6px; font-size: 0.78rem; color: var(--muted); }
+  .modes input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .modes input:checked + span { color: var(--teal); border-color: #c4ded0; background: #ecf6ed; }
+  .hint { margin: 6px 0 0; font-size: 0.79rem; color: var(--muted); }
+  .error { color: #9d3b24; margin-top: 12px; font-size: 0.85rem; }
+  .connection { margin-bottom: 20px; padding-bottom: 17px; border-bottom: 1px solid var(--line); }
+  .connection p { margin: 0 0 8px; color: var(--muted); font-size: 0.83rem; }
+  .connection-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .connection-actions a { color: var(--teal); font-size: 0.81rem; text-underline-offset: 2px; }
+  button { border: 0; border-radius: 8px; min-height: 39px; padding: 7px 11px; background: var(--teal); color: white; font: inherit; font-weight: 700; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+  .manual { margin-top: 14px; padding-bottom: 0; }
+  .manual > .field { margin-top: 12px; }
+  .results { background: #153a33; color: #f8f8ed; }
+  .results h2 { color: #bde1c9; margin-bottom: 13px; }
+  .route { display: flex; justify-content: space-between; gap: 12px; position: relative; margin-bottom: 22px; }
+  .route::before { content: ""; position: absolute; left: 5px; right: 5px; top: 5px; height: 2px; background: #82a895; }
+  .stop { position: relative; min-width: 0; max-width: 50%; padding-top: 17px; overflow-wrap: anywhere; }
+  .stop::before { content: ""; position: absolute; top: 0; width: 9px; height: 9px; border: 1px solid #153a33; border-radius: 50%; background: #bde1c9; box-shadow: 0 0 0 1px #bde1c9; }
+  .stop:last-child { text-align: right; }
+  .stop:last-child::before { right: 0; background: #eaf5aa; box-shadow: 0 0 0 1px #eaf5aa; }
+  .stop small { display: block; color: #bde1c9; font-size: 0.74rem; }
+  .stop strong { font-size: 0.94rem; }
+  dl { margin: 0; }
+  .metrics { display: grid; grid-template-columns: 0.94fr 1.06fr; gap: 12px; padding: 19px 0 20px; border-block: 1px solid #568172; }
+  .metrics dt { color: #bde1c9; font-size: 0.84rem; margin-bottom: 6px; }
+  .metrics dd { margin: 0; font-variant-numeric: tabular-nums; font-size: clamp(1.4rem, 3.6vw, 2.55rem); line-height: 1.18; font-weight: 760; letter-spacing: -0.045em; overflow-wrap: anywhere; }
+  .metrics .distance { color: #eaf5aa; }
+  .unit { padding-left: 3px; font-size: 0.86rem; letter-spacing: 0; color: #bde1c9; font-weight: 600; white-space: nowrap; }
+  .status { min-height: 2.5em; color: #e0ede3; margin: 15px 0 0; font-size: 0.83rem; }
+  .bar-label { color: #bde1c9; font-size: 0.75rem; margin: 0 0 6px; }
+  progress { display: block; width: 100%; height: 7px; border: 0; border-radius: 8px; background: #335e52; appearance: none; }
+  progress::-webkit-progress-bar { background: #335e52; border-radius: 8px; }
+  progress::-webkit-progress-value { background: #d9e998; border-radius: 8px; }
+  progress::-moz-progress-bar { background: #d9e998; border-radius: 8px; }
+  details { margin: 18px 0 0; padding: 11px 0; color: var(--muted); font-size: 0.83rem; }
+  summary { cursor: pointer; color: var(--teal); width: fit-content; font-weight: 700; }
+  details p { margin: 7px 0 0; max-width: 72ch; }
+
+  @media (max-width: 720px) {
+    main { width: min(530px, calc(100% - 28px)); margin: 26px auto; }
+    h1 { margin-top: 24px; }
+    .layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .intro { margin-bottom: 19px; }
+    .metrics dd { font-size: clamp(1.4rem, 6vw, 2.45rem); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="top">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>DailyPass</div>
+      <span class="version">1.39.0 · Minecraft 1.19.2</span>
+    </div>
+    <h1>乗車レベル計算機</h1>
+    <p class="intro">Minecraftの総合レベルを読み取り、目標までに必要なXPと乗車距離を計算します。</p>
+  </header>
+
+  <div class="layout">
+    <form class="card inputs" id="calculator" autocomplete="off">
+      <h2>目標を設定</h2>
+      <div class="connection">
+        <p id="connection-status" role="status">Minecraft と接続できます。</p>
+        <div class="connection-actions">
+          <button type="button" id="connect">Minecraft と接続</button>
+          <a id="local-version" href="http://127.0.0.1:38767/">ローカル版</a>
+          <a href="https://lencie040.github.io/dailypass-xp-calculator/downloads/dailypass-xp-link-1.0.0.jar">連携MODを入手</a>
+        </div>
+      </div>
+      <div class="field">
+        <label for="target">目標のレベル</label>
+        <input id="target" type="text" placeholder="30 または [★★]Lv.0" spellcheck="false" maxlength="30" aria-describedby="target-hint">
+        <p class="hint" id="target-hint">上限は [★★★★★]Lv.99 です。</p>
+      </div>
+      <details class="manual">
+        <summary>現在地を手動入力</summary>
+      <div class="field">
+        <label for="current">現在のレベル</label>
+        <input id="current" type="text" placeholder="20 または [★]Lv.20" spellcheck="false" maxlength="30" aria-describedby="rank-hint">
+        <p class="hint" id="rank-hint">星付きのレベルはゲームの表示をそのまま入力できます。</p>
+      </div>
+      <fieldset class="field">
+        <legend>次のレベルまでの経験値</legend>
+        <div class="modes">
+          <label><input type="radio" name="mode" value="earned" checked><span>現在の獲得XP</span></label>
+          <label><input type="radio" name="mode" value="remaining"><span>次までの残りXP</span></label>
+        </div>
+        <input id="xp" type="text" placeholder="40 / 116 または 40" spellcheck="false" maxlength="40" aria-label="経験値" aria-describedby="xp-hint">
+        <p class="hint" id="xp-hint">ゲーム画面の「40 / 116」のような表示を使えます。</p>
+      </fieldset>
+      </details>
+      <p class="error" id="error" role="status" hidden></p>
+    </form>
+
+    <section class="card results" aria-labelledby="results-heading" aria-live="polite" aria-atomic="true">
+      <h2 id="results-heading">目標まで</h2>
+      <div class="route">
+        <div class="stop"><small>現在</small><strong id="from">—</strong></div>
+        <div class="stop"><small>目標</small><strong id="to">—</strong></div>
+      </div>
+      <dl class="metrics">
+        <div><dt>必要な経験値</dt><dd><span id="needed">—</span><span class="unit">XP</span></dd></div>
+        <div><dt>乗車距離の目安</dt><dd class="distance"><span id="distance">—</span><span class="unit">km</span></dd></div>
+      </dl>
+      <p class="status" id="status">Minecraft のデータを待っています。</p>
+      <div id="progress-wrap" hidden>
+        <p class="bar-label" id="progress-label"></p>
+        <progress id="progress" aria-labelledby="progress-label"></progress>
+      </div>
+    </section>
+  </div>
+
+  <details>
+    <summary>距離の計算条件</summary>
+    <p>現在のレベル・獲得XP・次に必要なXPには、連携MODが受け取ったサーバーの値を使います。それより先のレベルと距離の換算は DailyPass 1.39.0 の標準設定（1 kmあたり5 XP）が基準です。精算ごとに端数を切り捨てるため、複数回に分けて乗ると表示より多くの距離が必要な場合があります。</p>
+  </details>
+</main>
+
+<script>
+  'use strict';
+
+  // config/dailypass/progress_settings.json と LevelData.need の設定・式。
+  const settings = Object.freeze({
+    xpPerKm: 5,
+    levelBase: 20,
+    levelLinear: 4,
+    levelExpBase: 6,
+    levelGrowth: 1.05,
+    starMultiplier: 1.5,
+    maxStars: 5
+  });
+  const levelsPerStar = 100;
+  const maxRank = settings.maxStars * levelsPerStar + levelsPerStar - 1;
+  const intFormat = new Intl.NumberFormat('ja-JP');
+  const kmFormat = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 3 });
+  const byId = id => document.getElementById(id);
+  const form = byId('calculator');
+  const currentField = byId('current');
+  const targetField = byId('target');
+  const xpField = byId('xp');
+  const xpHint = byId('xp-hint');
+  const error = byId('error');
+  const connectionStatus = byId('connection-status');
+  const connect = byId('connect');
+  const localOrigin = 'http://127.0.0.1:38767';
+  const isLocal = location.origin === localOrigin;
+  let live = null;
+  let following = false;
+
+  function normalize(text) {
+    return text.normalize('NFKC').replace(/\s/gu, '');
+  }
+
+  function readRank(text) {
+    const cleaned = normalize(text).replace(/^\[(★+)\]/u, '$1');
+    const match = /^(★*)(?:lv\.?)?(\d{1,2})$/iu.exec(cleaned);
+    if (!match || match[1].length > settings.maxStars) return null;
+    return match[1].length * levelsPerStar + Number(match[2]);
+  }
+
+  function rankLabel(rank) {
+    const stars = Math.floor(rank / levelsPerStar);
+    const prefix = stars ? '[' + '★'.repeat(stars) + ']' : '';
+    return prefix + 'Lv.' + (rank % levelsPerStar);
+  }
+
+  function levelXp(rank) {
+    const level = rank % levelsPerStar;
+    const stars = Math.floor(rank / levelsPerStar);
+    const base = settings.levelBase + settings.levelLinear * level + settings.levelExpBase * settings.levelGrowth ** level;
+    return Math.max(1, Math.round(base * settings.starMultiplier ** stars));
+  }
+
+  function readXp(text, need, remainingMode) {
+    const match = /^(\d+|\d{1,3}(?:,\d{3})+)(?:\/(\d+|\d{1,3}(?:,\d{3})+))?(?:xp)?$/iu.exec(normalize(text));
+    if (!match) return { error: '経験値は整数か「40 / 116」のような形式で入力してください。' };
+    if (match[2] && remainingMode) return { error: '「獲得XP / 必要XP」の形式は「現在の獲得XP」で入力してください。' };
+    const value = Number(match[1].replaceAll(',', ''));
+    const enteredNeed = match[2] ? Number(match[2].replaceAll(',', '')) : need;
+    if (enteredNeed !== need) return { error: 'このレベルの必要XPは ' + intFormat.format(need) + ' です。レベルと分母を確認してください。' };
+    if (value > need) return { error: '経験値は 0〜' + intFormat.format(need) + ' XP の範囲で入力してください。' };
+    return { earned: remainingMode ? need - value : value };
+  }
+
+  function xpToGoal(current, earned, target, need = levelXp(current)) {
+    if (target <= current) return 0;
+    let total = need - earned;
+    for (let step = current + 1; step < target; step += 1) total += levelXp(step);
+    return total;
+  }
+
+  function showProblem(field, message) {
+    field.setAttribute('aria-invalid', 'true');
+    error.textContent = message;
+    error.hidden = false;
+  }
+
+  function render() {
+    const current = live?.rank ?? readRank(currentField.value);
+    const target = readRank(targetField.value);
+    const remainingMode = form.elements.mode.value === 'remaining';
+    const need = live?.need ?? (current === null ? null : levelXp(current));
+    xpField.placeholder = remainingMode ? '例 76' : need === null ? '40 / 116 または 40' : '0 / ' + intFormat.format(need);
+    xpHint.textContent = remainingMode ? '次のレベルに必要な、残りのXPを入力してください。'
+      : 'ゲーム画面の「40 / 116」のような表示を使えます。';
+
+    for (const field of [currentField, targetField, xpField]) field.removeAttribute('aria-invalid');
+    error.hidden = true;
+    error.textContent = '';
+    byId('from').textContent = current === null ? '—' : rankLabel(current);
+    byId('to').textContent = target === null ? '—' : rankLabel(target);
+    byId('needed').textContent = '—';
+    byId('distance').textContent = '—';
+    byId('progress-wrap').hidden = true;
+    byId('status').textContent = '接続するか、現在地を手動で入力してください。';
+
+    if (!live && current === null && currentField.value.trim()) {
+      showProblem(currentField, '現在のレベルは 0〜99、星は最大5個です。');
+    } else if (target === null && targetField.value.trim()) {
+      showProblem(targetField, '目標のレベルは 0〜99、星は最大5個です。');
+    } else if (current !== null && (live || xpField.value.trim())) {
+      const xp = live ? { earned: live.xp } : readXp(xpField.value, need, remainingMode);
+      if (xp.error) {
+        showProblem(xpField, xp.error);
+        return;
+      }
+
+      if (current !== maxRank) {
+        const bar = byId('progress');
+        bar.max = need;
+        bar.value = xp.earned;
+        byId('progress-label').textContent = '現在の経験値 ' + intFormat.format(xp.earned) + ' / ' + intFormat.format(need) + ' XP';
+        byId('progress-wrap').hidden = false;
+      }
+      if (target === null) {
+        byId('status').textContent = '目標のレベルを入力してください。';
+        return;
+      }
+
+      const remaining = xpToGoal(current, xp.earned, target, need);
+      byId('needed').textContent = intFormat.format(remaining);
+      byId('distance').textContent = kmFormat.format(remaining / settings.xpPerKm);
+      byId('status').textContent = target <= current
+        ? '目標のレベルに到達済みです。'
+        : '次の ' + rankLabel(current + 1) + ' まで ' + intFormat.format(need - xp.earned) + ' XP';
+      if (live && need !== levelXp(current) && target > current + 1) {
+        byId('status').textContent += '。次のレベル以降は標準設定での概算です。';
+      }
+    } else if (current === maxRank && target !== null) {
+      byId('needed').textContent = '0';
+      byId('distance').textContent = '0';
+      byId('status').textContent = '上限レベルに到達済みです。';
+    }
+  }
+
+  function validSnapshot(data) {
+    return [data.stars, data.level, data.xp, data.need].every(Number.isSafeInteger)
+      && data.stars >= 0 && data.stars <= settings.maxStars && data.level >= 0 && data.level < levelsPerStar
+      && data.need > 0 && data.xp >= 0 && data.xp <= data.need;
+  }
+
+  async function poll() {
+    try {
+      const response = await fetch(localOrigin + '/api/progress', {
+        targetAddressSpace: 'loopback',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3500)
+      });
+      if (!response.ok) throw new Error('接続できませんでした');
+      const data = await response.json();
+      if (data.state === 'ready' && validSnapshot(data)) {
+        const next = { rank: data.stars * levelsPerStar + data.level, xp: data.xp, need: data.need };
+        if (!live || next.rank !== live.rank || next.xp !== live.xp || next.need !== live.need) {
+          live = next;
+          render();
+        }
+        connectionStatus.textContent = 'Minecraft に接続中 · 自動更新';
+      } else {
+        clearLive();
+        connectionStatus.textContent = {
+          offline: 'Minecraft でサーバーに入ると読み込みます。',
+          waiting: 'サーバーの乗車レベルを読み込み中…',
+          unsupported: '接続先が DailyPass の乗車レベルに対応していません。',
+          ready: 'サーバーのレベルまたはXPが、この計算機の対応範囲外です。'
+        }[data.state] ?? '連携MODからの応答を確認できませんでした。';
+      }
+    } catch {
+      clearLive();
+      connectionStatus.textContent = isLocal ? 'Minecraft の接続を確認してください。'
+        : '連携MODを入れて Minecraft を起動し、Chrome でローカルネットワークへのアクセスを許可してください。';
+      if (!isLocal) {
+        following = false;
+        connect.hidden = false;
+        return;
+      }
+    }
+    if (following) setTimeout(poll, 4000);
+  }
+
+  function follow() {
+    if (following) return;
+    following = true;
+    connect.hidden = true;
+    connectionStatus.textContent = 'Minecraft に接続しています…';
+    void poll();
+  }
+
+  function clearLive() {
+    if (!live) return;
+    live = null;
+    render();
+  }
+
+  form.addEventListener('input', render);
+  form.addEventListener('submit', event => event.preventDefault());
+  connect.addEventListener('click', follow);
+  render();
+  if (isLocal) {
+    byId('local-version').hidden = true;
+    follow();
+  } else if (navigator.permissions?.query) {
+    navigator.permissions.query({ name: 'loopback-network' }).then(permission => {
+      if (permission.state === 'granted') follow();
+    }).catch(() => {});
+  }
+</script>
+</body>
+</html>
