@@ -39,6 +39,9 @@
   .checks { margin-top: 12px; }
   .checks label { display: flex; align-items: center; gap: 6px; margin: 0; }
   .checks label:has(input:disabled) { color: var(--muted); }
+  .ranking-mode { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 5px; }
+  .ranking-mode button[aria-pressed="false"] { background: transparent; color: var(--teal); }
+  #cost-note { margin-bottom: 12px; }
   details { margin-top: 12px; }
   details .fields { margin: 9px 0 5px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   summary { cursor: pointer; font-weight: 700; color: var(--teal); width: fit-content; }
@@ -81,11 +84,16 @@
     <button id="load" type="submit">時刻表を読み込む</button>
     <label for="buffer">乗り換えに必要な秒数</label>
     <input id="buffer" type="number" min="0" max="600" step="1" value="15" required>
-    <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.0/dailypass-xp-link-1.2.0.jar">連携MOD 1.2.0</a>
+    <a href="https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.1/dailypass-xp-link-1.2.1.jar">連携MOD 1.2.1</a>
   </form>
   <p id="status" role="status">同じPCでMTROPSと連携MODを起動してください。</p>
 
   <section id="settings" class="panel" aria-label="絞り込み" hidden>
+    <div class="ranking-mode" role="group" aria-label="並べ替え">
+      <button id="time-mode" type="button" aria-pressed="true">時間重視</button>
+      <button id="cost-mode" type="button" aria-pressed="false" aria-describedby="cost-note">コスパ重視</button>
+    </div>
+    <p class="hint" id="cost-note" role="status"></p>
     <div class="fields">
       <div><label for="company">XPの集計対象</label><select id="company"><option value="">総合</option></select></div>
       <div><label for="station">駅名で絞り込む</label><input id="station" type="search" placeholder="出発駅または折り返し駅"></div>
@@ -121,7 +129,9 @@
           <th scope="col">順位</th><th scope="col">出発駅 → 折り返し駅 → 出発駅</th>
           <th scope="col" class="num">最初の出発</th><th scope="col" class="num">折り返し駅待ち</th>
           <th scope="col" class="num">出発駅待ち</th><th scope="col" class="num">1周</th>
-          <th scope="col" class="num">XP/周</th><th scope="col" class="num">XP/時</th>
+          <th scope="col" class="num">XP/周</th><th id="time-column" scope="col" class="num" aria-sort="descending">XP/時</th>
+          <th id="fare-column" scope="col" class="num" hidden>普通運賃/周</th>
+          <th id="cost-column" scope="col" class="num" hidden>XP/100 CP</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -135,6 +145,7 @@
     <p class="hint">今後2時間の時刻表で、出発駅から折り返し駅に向かい、復路で戻って次の往路に乗れるまでを1周とします。両駅で設定秒数を過ぎてから乗れる便を選び、最初の往路便から最大3周を平均します。</p>
     <p class="hint">同じ車庫の上り・下りは、路線IDが異なっていても組み合わせます。同じ編成の折り返しは編成IDで確認します。到着時刻を照合できない便は駅間所要時間から推定します。</p>
     <p class="hint">DailyPassの距離精算で対象となる距離を使い、往路・復路それぞれでXPの端数を切り捨てます。最初の出発までの待ちは出発時刻の欄に表示します。</p>
+    <p class="hint">コスパ重視では、往路・復路の普通運賃を合計し、100 CPあたりに得られるXPを比較します。会社別でも支払う運賃は往復全体で計算します。運賃はクライアントの設定を使った見積もりで、定期券や特急・座席料金などは計算に含めません。</p>
   </details>
 </main>
 </body>

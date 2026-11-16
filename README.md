@@ -4,7 +4,7 @@
 
 ## 自動更新
 
-1. [DailyPass XP Link 1.2.0](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.0/dailypass-xp-link-1.2.0.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。旧版が入っている場合は差し替えます。
+1. [DailyPass XP Link 1.2.1](https://github.com/lencie040/dailypass-xp-calculator/releases/download/v1.2.1/dailypass-xp-link-1.2.1.jar) を、DailyPass 1.39.0 と Fabric API を入れた Minecraft 1.19.2 クライアントの `mods` に追加します。旧版が入っている場合は差し替えます。
 2. Minecraft を再起動し、DailyPass が動いているサーバーに入ります。
 3. 同じPCで計算機を開いて、目標レベルを入力します。Chromeで初めて開くときは「Minecraft と接続」を押して、ローカルネットワークへのアクセスを許可します。
 
@@ -30,6 +30,8 @@
 
 総合・会社別、駅名、種別で絞り込めます。「同じ車庫の往復のみ」を外すと、別の車庫に属する便も対象にできます。乗り換えに必要な秒数を変更したら「時刻表を更新」を押します。到着時刻を照合できなかった便は所要時間を推定します。
 
+連携MOD 1.2.1の「コスパ重視」は、往復の普通運賃100 CPあたりのXP順で表示します。会社別を選んだ場合も、普通運賃は往復全体で見積もります。運賃表はクライアントが読み込んだDailyPassの設定を使い、定期券や特急・座席料金などは計算の対象外です。
+
 ## ビルド
 
-JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.2.0.jar` が生成されます。
+JDK 17 で `./gradlew build` を実行すると、`build/libs/dailypass-xp-link-1.2.1.jar` が生成されます。

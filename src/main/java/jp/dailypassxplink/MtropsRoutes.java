@@ -128,7 +128,7 @@ final class MtropsRoutes implements AutoCloseable {
             Map<String, Double> companyMeters = Map.of();
             if (hasStations && meters > 0 && fares != null && fares.distanceFare()) {
                 try {
-                    companyMeters = fares.companyDistances(name, stations);
+                    companyMeters = fares.quote(name, stations).companyMeters();
                 } catch (ReflectiveOperationException e) {
                     // Distance and timing are still available even if DailyPass cannot attribute this route.
                 }

@@ -254,15 +254,16 @@ final class MtropsLoops {
 
     private static Ride ride(Leg leg, DailyPassFares.Data fares) {
         var route = leg.pattern.route();
-        Map<String, Double> companyMeters = Map.of();
+        var quote = DailyPassFares.Quote.UNKNOWN;
         if (fares != null && fares.distanceFare()) {
             try {
-                companyMeters = fares.companyDistances(route.name(), leg.pattern.stops().subList(leg.fromIndex, leg.toIndex + 1));
+                quote = fares.quote(route.name(), leg.pattern.stops().subList(leg.fromIndex, leg.toIndex + 1));
             } catch (ReflectiveOperationException e) {
                 // The timetable remains useful when attribution is unavailable.
             }
         }
-        return new Ride(route.id(), route.name(), route.number(), leg.meters, leg.measured, companyMeters);
+        return new Ride(route.id(), route.name(), route.number(), leg.meters, leg.measured,
+                quote.companyMeters(), quote.regularFareCp());
     }
 
     private record StationPair(String from, String to) {
@@ -283,7 +284,8 @@ final class MtropsLoops {
     record Trip(long depart, long arrive, String train, boolean estimated) {}
     record Cycle(long firstDeparture, double seconds, double outboundSeconds, double returnSeconds,
                  double waitAtDestination, double waitAtOrigin, int cycles, int estimatedRides, int sameTrainTurns) {}
-    record Ride(String routeId, String routeName, String type, double meters, boolean measured, Map<String, Double> companyMeters) {}
+    record Ride(String routeId, String routeName, String type, double meters, boolean measured,
+                Map<String, Double> companyMeters, Integer regularFareCp) {}
     record Loop(String startId, String turnId, String start, String turn, Ride outbound, Ride inbound, List<String> sharedDepots, Cycle cycle) {}
     record Result(String state, long measuredAt, int stations, int schedules, boolean depotsAvailable, boolean distanceFare,
                   Map<String, String> companies, List<Loop> loops) {

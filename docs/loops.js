@@ -9,6 +9,10 @@ const clock = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-dig
 const status = byId('status');
 const loadButton = byId('load');
 const buffer = byId('buffer');
+const timeMode = byId('time-mode');
+const costMode = byId('cost-mode');
+let sortByCost = false;
+let hasFares = false;
 let data, ranked = [], page = 0;
 
 function primaryLabel(text) {
@@ -38,7 +42,7 @@ function passesType(ride, allow, deny) {
     return (!allow.size || names.some(name => allow.has(name))) && !names.some(name => deny.has(name));
 }
 
-function fare(ride, company, rate, canEstimate) {
+function rideXp(ride, company, rate, canEstimate) {
     let meters = ride.companyMeters[company] ?? 0;
     let estimated = false;
     if (!company) {
@@ -73,12 +77,27 @@ function stationLabels(loop) {
     return [loop.start, loop.turn, loop.start].map(primaryLabel).join(' → ');
 }
 
+function roundTripFare(loop) {
+    const out = loop.outbound.regularFareCp;
+    const back = loop.inbound.regularFareCp;
+    return Number.isInteger(out) && out >= 0 && Number.isInteger(back) && back >= 0 ? out + back : null;
+}
+
+function setRankingMode(byCost) {
+    sortByCost = byCost && hasFares;
+    timeMode.setAttribute('aria-pressed', !sortByCost);
+    costMode.setAttribute('aria-pressed', sortByCost);
+    byId('time-column').setAttribute('aria-sort', sortByCost ? 'none' : 'descending');
+    byId('cost-column').setAttribute('aria-sort', sortByCost ? 'descending' : 'none');
+    rankLoops();
+}
+
 function renderPage() {
     const pages = Math.ceil(ranked.length / pageSize);
     const first = page * pageSize;
     const fragment = document.createDocumentFragment();
     ranked.slice(first, first + pageSize).forEach((row, index) => {
-        const { loop, outbound, inbound, xp, efficiency } = row;
+        const { loop, outbound, inbound, xp, efficiency, fareCp, xpPer100Cp } = row;
         const { cycle } = loop;
         const tr = document.createElement('tr');
         const depots = loop.sharedDepots.map(primaryLabel).join('、');
@@ -99,7 +118,13 @@ function renderPage() {
             cycle.estimatedRides ? cycle.estimatedRides + '便の到着を推定' : ''
         ]);
         cell(tr, integer.format(xp), 'num', [outbound.xp + ' ＋ ' + inbound.xp, distanceEstimate]);
-        cell(tr, decimal.format(efficiency), 'num rate');
+        cell(tr, decimal.format(efficiency), sortByCost ? 'num' : 'num rate');
+        if (hasFares) {
+            cell(tr, fareCp === null ? '不明' : integer.format(fareCp) + ' CP', 'num',
+                fareCp === null ? [] : [loop.outbound.regularFareCp + ' ＋ ' + loop.inbound.regularFareCp]);
+            const costLabel = fareCp === 0 ? '0 CPで獲得' : xpPer100Cp === null ? '—' : decimal.format(xpPer100Cp);
+            cell(tr, costLabel, sortByCost ? 'num rate' : 'num');
+        }
         fragment.append(tr);
     });
     byId('rows').replaceChildren(fragment);
@@ -130,13 +155,21 @@ function rankLoops() {
         if (shared && !loop.sharedDepots.length) continue;
         if (station && ![loop.start, loop.turn].some(name => filterName(name).includes(station))) continue;
         if (!passesType(loop.outbound, allow, deny) || !passesType(loop.inbound, allow, deny)) continue;
-        const outbound = fare(loop.outbound, company, rate.valueAsNumber, estimate.checked);
-        const inbound = fare(loop.inbound, company, rate.valueAsNumber, estimate.checked);
+        const fareCp = roundTripFare(loop);
+        if (sortByCost && fareCp === null) continue;
+        const outbound = rideXp(loop.outbound, company, rate.valueAsNumber, estimate.checked);
+        const inbound = rideXp(loop.inbound, company, rate.valueAsNumber, estimate.checked);
         if (outbound === null || inbound === null) continue;
         const xp = outbound.xp + inbound.xp;
-        if (xp > 0) ranked.push({ loop, outbound, inbound, xp, efficiency: xp * 3600 / loop.cycle.seconds });
+        if (xp > 0) {
+            ranked.push({ loop, outbound, inbound, xp, efficiency: xp * 3600 / loop.cycle.seconds,
+                fareCp, xpPer100Cp: fareCp > 0 ? xp * 100 / fareCp : null });
+        }
     }
-    ranked.sort((a, b) => b.efficiency - a.efficiency || b.loop.cycle.cycles - a.loop.cycle.cycles
+    ranked.sort((a, b) => (sortByCost
+        ? Number(b.fareCp === 0) - Number(a.fareCp === 0) || (b.xpPer100Cp ?? 0) - (a.xpPer100Cp ?? 0)
+        : 0)
+        || b.efficiency - a.efficiency || b.loop.cycle.cycles - a.loop.cycle.cycles
         || a.loop.cycle.estimatedRides - b.loop.cycle.estimatedRides || a.loop.cycle.seconds - b.loop.cycle.seconds
         || a.loop.cycle.firstDeparture - b.loop.cycle.firstDeparture);
     page = 0;
@@ -145,11 +178,17 @@ function rankLoops() {
         byId('leader-stations').textContent = stationLabels(first.loop);
         byId('leader-detail').textContent = integer.format(first.xp) + ' XP/周 · ' + duration(first.loop.cycle.seconds)
             + '/周 · ' + clock.format(first.loop.cycle.firstDeparture) + ' 発'
+            + (sortByCost ? ' · ' + integer.format(first.fareCp) + ' CP/周 · ' + decimal.format(first.efficiency) + ' XP/時' : '')
             + (first.loop.cycle.estimatedRides || first.outbound.estimated || first.inbound.estimated ? ' · 推定を含む' : '');
-        byId('leader-rate').textContent = decimal.format(first.efficiency) + ' XP/時';
+        byId('leader-rate').textContent = sortByCost
+            ? (first.fareCp === 0 ? '0 CPで獲得' : decimal.format(first.xpPer100Cp) + ' XP/100 CP')
+            : decimal.format(first.efficiency) + ' XP/時';
         byId('leader').hidden = false;
     }
     byId('count').textContent = integer.format(ranked.length) + ' / ' + integer.format(data.loops.length) + '件';
+    byId('empty').textContent = sortByCost
+        ? 'この条件で往復の普通運賃とXPが分かる候補がありません。'
+        : '条件に合う往復がありません。種別・駅名・車庫の条件を見直せます。';
     byId('empty').hidden = Boolean(first);
     byId('table').hidden = !first;
     renderPage();
@@ -172,6 +211,12 @@ function installData(value, transferSeconds) {
     }
     byId('types').textContent = types.size ? '取得した種別 ' + [...types].sort((a, b) => a.localeCompare(b, 'ja')).join('、') : '';
     byId('shared').disabled = !value.depotsAvailable;
+    hasFares = value.loops.some(loop => roundTripFare(loop) !== null);
+    costMode.disabled = !hasFares;
+    byId('fare-column').hidden = !hasFares;
+    byId('cost-column').hidden = !hasFares;
+    byId('cost-note').textContent = hasFares ? 'コスパ重視は往復の普通運賃100 CPあたりのXP順です。'
+        : 'コスパ重視には、連携MOD 1.2.1とDailyPassの普通運賃データが必要です。';
     byId('settings').hidden = false;
     loadButton.textContent = '時刻表を更新';
     const messages = [
@@ -181,7 +226,7 @@ function installData(value, transferSeconds) {
         value.distanceFare ? '' : 'DailyPassの距離精算設定を取得できなかったため、線路距離で概算できます。'
     ];
     status.textContent = messages.filter(Boolean).join(' ');
-    rankLoops();
+    setRankingMode(sortByCost);
 }
 
 async function loadLoops() {
@@ -230,6 +275,8 @@ for (const id of ['allow', 'deny']) {
     });
 }
 byId('settings').addEventListener('input', rankLoops);
+timeMode.addEventListener('click', () => setRankingMode(false));
+costMode.addEventListener('click', () => setRankingMode(true));
 byId('connection').addEventListener('submit', event => {
     event.preventDefault();
     void loadLoops();
